@@ -43,7 +43,7 @@ int spatial_reverb_segment_start(struct mixed_segment *segment){
   return 1;
 }
 
-void spatial_reverb_segment_update(float *distances, float *hit_ratios, float *absorption_rates, struct mixed_segment *segment){
+MIXED_EXPORT void mixed_spatial_reverb_segment_update(float *distances, float *hit_ratios, float *absorption_rates, struct mixed_segment *segment){
   struct spatial_reverb_segment_data *data = (struct spatial_reverb_segment_data *)segment->data;
   float distance_delay_factor = data->distance_delay_factor;
   uint32_t delay_capacity = data->delay_capacity;
@@ -62,7 +62,6 @@ void spatial_reverb_segment_update(float *distances, float *hit_ratios, float *a
 
 VECTORIZE int spatial_reverb_segment_mix(struct mixed_segment *segment){
   struct spatial_reverb_segment_data *data = (struct spatial_reverb_segment_data *)segment->data;
-  
 
   uint32_t samples = UINT32_MAX;
   float *L_in, *R_in, *L_out, *R_out;
@@ -224,7 +223,7 @@ MIXED_EXPORT int mixed_make_segment_spatial_reverb(uint32_t samplerate, struct m
   segment->data = data;
   data->samplerate = samplerate;
   data->delay_capacity = samplerate;
-  data->distance_delay_factor = 0.001;
+  data->distance_delay_factor = 0.0001;
 
   for(int d=0; d<4; ++d){
     struct spatial_reverb_direction *dir = &data->directions[d];

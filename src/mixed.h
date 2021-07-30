@@ -323,7 +323,7 @@ extern "C" {
     // Can only be read.
     MIXED_COMPRESSOR_GAIN,
     // The delay in seconds per unit of distance to use.
-    // The default is 0.001
+    // The default is 0.0001
     MIXED_SPATIAL_REVERB_DISTANCE_DELAY
   };
 
@@ -1245,6 +1245,28 @@ extern "C" {
   // threads at once.
   MIXED_EXPORT int mixed_chain_remove(struct mixed_segment *segment, struct mixed_segment *chain);
   MIXED_EXPORT int mixed_chain_remove_at(uint32_t i, struct mixed_segment *chain);
+
+  // A spatial reverb segment
+  //
+  // Takes in and outputs stereo audio. The input is divided into
+  // four different diagonal directions for the sound, for which
+  // you should provide spatial probe results using the
+  // mixed_spatial_reverb_segment_update function.
+  //
+  // You should also set the expected distance to echo response
+  // time factor.
+  MIXED_EXPORT int mixed_make_segment_spatial_reverb(uint32_t samplerate, struct mixed_segment *segment);
+
+  // Update the parameters of the spatial reverb.
+  //
+  // Each of the parameters should be four floats for each diagonal
+  // direction (top left, bottom left, top right, bottom right).
+  // distances should be the average distance of samples along that
+  // direction. hit_ratios should be the ratio of rays that hit
+  // anything at all (or within a self-defined max distance). The
+  // absorption_rates should be the ratio of absorbed frequencies
+  // by the median material hit by the rays along that direction.
+  MIXED_EXPORT void mixed_spatial_reverb_segment_update(float *distances, float *hit_ratios, float *absorption_rates, struct mixed_segment *segment);
 
   typedef int (*mixed_make_segment_function)(void *args, struct mixed_segment *segment);
   typedef int (*mixed_register_segment_function)(char *name, uint32_t argc, struct mixed_segment_field_info *args, mixed_make_segment_function function);
