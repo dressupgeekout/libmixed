@@ -136,6 +136,7 @@ add_library(mixed OBJECT
   "src/segments/queue.c"
   #"src/segments/repeat.c"
   "src/segments/space_mixer.c"
+  "src/segmetns/spatial_reverb.c"
   "src/segments/speed_change.c"
   "src/segments/volume_control.c")
 target_include_directories(mixed PRIVATE "src/" "libsamplerate/" "spiralfft/")

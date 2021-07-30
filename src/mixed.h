@@ -322,6 +322,9 @@ extern "C" {
     // The actual gain that was applied during compression.
     // Can only be read.
     MIXED_COMPRESSOR_GAIN,
+    // The delay in seconds per unit of distance to use.
+    // The default is 0.001
+    MIXED_SPATIAL_REVERB_DISTANCE_DELAY
   };
 
   // This enum descripbes the possible resampling quality options.
