@@ -1,4 +1,5 @@
 #include "../internal.h"
+#define PROBE_COUNT 32
 
 struct spatial_reverb_direction{
   float last;
@@ -17,7 +18,73 @@ struct spatial_reverb_segment_data{
   uint32_t samplerate;
   uint32_t delay_capacity;
   float distance_delay_factor;
+  float max_distance_cutoff;
+
+  float probe_angles[PROBE_COUNT];
+  float probe_distances[PROBE_COUNT];
+  float probe_materials[PROBE_COUNT];
+  uint8_t probe_index;
 };
+
+static void update_parameters(struct spatial_reverb_segment_data *data, float *distances, float *hit_ratios, float *absorption_rates){
+  float distance_delay_factor = data->distance_delay_factor;
+  uint32_t delay_capacity = data->delay_capacity;
+  uint32_t samplerate = data->samplerate;
+
+  for(uint8_t d=0; d<4; ++d){
+    struct spatial_reverb_direction *dir = &data->directions[d];
+    uint32_t delay_length = (distance_delay_factor * distances[d]) * samplerate;
+    dir->delay_length = MIN(delay_length, delay_capacity);
+    dir->gain = hit_ratios[d];
+
+    biquad_lowpass(samplerate, absorption_rates[d]*samplerate, 0.0, &dir->lpf);
+    biquad_allpass(samplerate, absorption_rates[d]*samplerate, 1.0, &dir->apf);
+  }
+}
+
+static inline float gauss(float x){
+  const float dev = 0.2;
+  return expf(-0.5 * powf(x/dev, 2)) / (dev*sqrt(2*M_PI));
+}
+
+static void recompute_parameter(struct spatial_reverb_segment_data *data, float angle, float *distance, float *hit_ratio, float *absorption_rate){
+  float distance_sum = 0.0;
+  float hit_ratio_sum = 0.0;
+  float absorption_sum = 0.0;
+  float weight_sum = 0.0;
+  float cutoff = data->max_distance_cutoff;
+
+  float *angles = data->probe_angles;
+  float *distances = data->probe_distances;
+  float *materials = data->probe_materials;
+  for(uint8_t i=0; i<PROBE_COUNT; ++i){
+    float weight = gauss(angle - angles[i]);
+    float distance = distances[i];
+    if(distance < cutoff){
+      distance_sum += distances[i] * weight;
+      hit_ratio_sum += 1 * weight;
+      absorption_sum += materials[i] * weight;
+    }
+    weight_sum += weight;
+  }
+
+  *distance = distance_sum / weight_sum;
+  *hit_ratio = hit_ratio_sum / weight_sum;
+  *absorption_rate = absorption_sum / weight_sum;
+}
+
+static void recompute_parameters(struct spatial_reverb_segment_data *data){
+  float distances[4];
+  float hit_ratios[4];
+  float absorption_rates[4];
+
+  recompute_parameter(data, M_PI*0.75, &distances[0], &hit_ratios[0], &absorption_rates[0]);
+  recompute_parameter(data, M_PI*1.25, &distances[1], &hit_ratios[1], &absorption_rates[1]);
+  recompute_parameter(data, M_PI*1.75, &distances[2], &hit_ratios[2], &absorption_rates[2]);
+  recompute_parameter(data, M_PI*0.25, &distances[3], &hit_ratios[3], &absorption_rates[3]);
+  
+  update_parameters(data, distances, hit_ratios, absorption_rates);
+}
 
 int spatial_reverb_segment_free(struct mixed_segment *segment){
   struct spatial_reverb_segment_data *data = (struct spatial_reverb_segment_data *)segment->data;
@@ -41,23 +108,6 @@ int spatial_reverb_segment_start(struct mixed_segment *segment){
     biquad_reset(&dir->apf);
   }
   return 1;
-}
-
-MIXED_EXPORT void mixed_spatial_reverb_segment_update(float *distances, float *hit_ratios, float *absorption_rates, struct mixed_segment *segment){
-  struct spatial_reverb_segment_data *data = (struct spatial_reverb_segment_data *)segment->data;
-  float distance_delay_factor = data->distance_delay_factor;
-  uint32_t delay_capacity = data->delay_capacity;
-  uint32_t samplerate = data->samplerate;
-
-  for(uint8_t d=0; d<4; ++d){
-    struct spatial_reverb_direction *dir = &data->directions[d];
-    uint32_t delay_length = (distance_delay_factor * distances[d]) * samplerate;
-    dir->delay_length = MIN(delay_length, delay_capacity);
-    dir->gain = hit_ratios[d];
-
-    biquad_lowpass(samplerate, absorption_rates[d]*samplerate, 0.0, &dir->lpf);
-    biquad_allpass(samplerate, absorption_rates[d]*samplerate, 1.0, &dir->apf);
-  }
 }
 
 VECTORIZE int spatial_reverb_segment_mix(struct mixed_segment *segment){
@@ -157,6 +207,7 @@ int spatial_reverb_segment_get(uint32_t field, void *value, struct mixed_segment
   struct spatial_reverb_segment_data *data = (struct spatial_reverb_segment_data *)segment->data;
   switch(field){
   case MIXED_SPATIAL_REVERB_DISTANCE_DELAY: *((float *)value) = data->distance_delay_factor; break;
+  case MIXED_SPATIAL_REVERB_MAX_DISTANCE_CUTOFF: *((float *)value) = data->max_distance_cutoff; break;
   case MIXED_BYPASS: *((bool *)value) = (segment->mix == spatial_reverb_segment_mix_bypass); break;
   default: mixed_err(MIXED_INVALID_FIELD); return 0;
   }
@@ -172,6 +223,22 @@ int spatial_reverb_segment_set(uint32_t field, void *value, struct mixed_segment
       return 0;
     }
     data->distance_delay_factor = *(float *)value;
+    break;
+  case MIXED_SPATIAL_REVERB_MAX_DISTANCE_CUTOFF:
+    data->max_distance_cutoff = *(float *)value;
+    break;
+  case MIXED_SPATIAL_REVERB_PARAMETERS: 
+    update_parameters(data, (float *)value, ((float *)value)+4, ((float *)value)+8);
+    break;
+  case MIXED_SPATIAL_REVERB_PROBE: {
+    float *values = (float *)value;
+    uint8_t index = data->probe_index;
+    data->probe_angles[index] = values[0];
+    data->probe_distances[index] = values[1];
+    data->probe_materials[index] = values[2];
+    data->probe_index = (index+1) % PROBE_COUNT;
+    recompute_parameters(data);
+  }
     break;
   case MIXED_BYPASS:
     if(*(bool *)value){
@@ -205,6 +272,18 @@ int spatial_reverb_segment_info(struct mixed_segment_info *info, struct mixed_se
                  MIXED_FLOAT, 1, MIXED_SEGMENT | MIXED_SET | MIXED_GET,
                  "How much delay (in seconds) to use per unit of distance.");
 
+  set_info_field(field++, MIXED_SPATIAL_REVERB_MAX_DISTANCE_CUTOFF,
+                 MIXED_FLOAT, 1, MIXED_SEGMENT | MIXED_SET | MIXED_GET,
+                 "The maximum distance of a probe before it is considered to have missed.");
+
+  set_info_field(field++, MIXED_SPATIAL_REVERB_PARAMETERS,
+                 MIXED_FLOAT, 12, MIXED_SEGMENT | MIXED_SET,
+                 "Set the spatial reverb parameters.");
+
+  set_info_field(field++, MIXED_SPATIAL_REVERB_PROBE,
+                 MIXED_FLOAT, 3, MIXED_SEGMENT | MIXED_SET,
+                 "Set a new spatial reverb probe.");
+
   set_info_field(field++, MIXED_BYPASS,
                  MIXED_BOOL, 1, MIXED_SEGMENT | MIXED_SET | MIXED_GET,
                  "Bypass the segment's processing.");
@@ -224,6 +303,7 @@ MIXED_EXPORT int mixed_make_segment_spatial_reverb(uint32_t samplerate, struct m
   data->samplerate = samplerate;
   data->delay_capacity = samplerate;
   data->distance_delay_factor = 0.0001;
+  data->max_distance_cutoff = 1000.0;
 
   for(int d=0; d<4; ++d){
     struct spatial_reverb_direction *dir = &data->directions[d];

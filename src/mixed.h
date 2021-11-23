@@ -324,7 +324,24 @@ extern "C" {
     MIXED_COMPRESSOR_GAIN,
     // The delay in seconds per unit of distance to use.
     // The default is 0.0001
-    MIXED_SPATIAL_REVERB_DISTANCE_DELAY
+    MIXED_SPATIAL_REVERB_DISTANCE_DELAY,
+    // The maximum distance of a ray before it is considered to have missed.
+    // The default is 1000.0
+    MIXED_SPATIAL_REVERB_MAX_DISTANCE_CUTOFF,
+    // Update the parameters of the spatial reverb directly.
+    // The value should be an array of 12 floats:
+    //   4 directional distance averages in range [0,[
+    //   4 directional hit ratios in range [0,1]
+    //   4 directional material absorption rates in range [0,1]
+    // Each direction should be in the counter-clockwise order of
+    //   TOPLEFT, BOTTOMLEFT, BOTTOMRIGHT, TOPRIGHT
+    MIXED_SPATIAL_REVERB_PARAMETERS,
+    // Input a new spatial reverb probe.
+    // The value should be an array of three floats:
+    //   ray angle in radians
+    //   ray length in units
+    //   hit material absorption rate
+    MIXED_SPATIAL_REVERB_PROBE,
   };
 
   // This enum descripbes the possible resampling quality options.
@@ -1256,17 +1273,6 @@ extern "C" {
   // You should also set the expected distance to echo response
   // time factor.
   MIXED_EXPORT int mixed_make_segment_spatial_reverb(uint32_t samplerate, struct mixed_segment *segment);
-
-  // Update the parameters of the spatial reverb.
-  //
-  // Each of the parameters should be four floats for each diagonal
-  // direction (top left, bottom left, top right, bottom right).
-  // distances should be the average distance of samples along that
-  // direction. hit_ratios should be the ratio of rays that hit
-  // anything at all (or within a self-defined max distance). The
-  // absorption_rates should be the ratio of absorbed frequencies
-  // by the median material hit by the rays along that direction.
-  MIXED_EXPORT void mixed_spatial_reverb_segment_update(float *distances, float *hit_ratios, float *absorption_rates, struct mixed_segment *segment);
 
   typedef int (*mixed_make_segment_function)(void *args, struct mixed_segment *segment);
   typedef int (*mixed_register_segment_function)(char *name, uint32_t argc, struct mixed_segment_field_info *args, mixed_make_segment_function function);
