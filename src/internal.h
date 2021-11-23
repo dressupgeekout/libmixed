@@ -107,14 +107,14 @@ void biquad_lowshelf(uint32_t rate, float freq, float Q, float gain, struct biqu
 void biquad_highshelf(uint32_t rate, float freq, float Q, float gain, struct biquad_data *state);
 void biquad_process(struct mixed_buffer *in, struct mixed_buffer *out, struct biquad_data *data);
 
-inline void biquad_reset(struct biquad_data *data){
+static inline void biquad_reset(struct biquad_data *data){
   data->x[0] = 0.0f;
   data->x[1] = 0.0f;
   data->y[0] = 0.0f;
   data->y[1] = 0.0f;
 }
 
-inline float biquad_sample(float sample, struct biquad_data *data){
+static inline float biquad_sample(float sample, struct biquad_data *data){
   float b0 = data->b[0];
   float b1 = data->b[1];
   float b2 = data->b[2];

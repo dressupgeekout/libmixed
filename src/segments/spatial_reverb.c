@@ -34,7 +34,7 @@ static void update_parameters(struct spatial_reverb_segment_data *data, float *d
   for(uint8_t d=0; d<4; ++d){
     struct spatial_reverb_direction *dir = &data->directions[d];
     uint32_t delay_length = (distance_delay_factor * distances[d]) * samplerate;
-    dir->delay_length = MIN(delay_length, delay_capacity);
+    dir->delay_length = MAX(1, MIN(delay_length, delay_capacity));
     dir->gain = hit_ratios[d];
 
     biquad_lowpass(samplerate, absorption_rates[d]*samplerate, 0.0, &dir->lpf);
@@ -68,9 +68,16 @@ static void recompute_parameter(struct spatial_reverb_segment_data *data, float 
     weight_sum += weight;
   }
 
-  *distance = distance_sum / weight_sum;
-  *hit_ratio = hit_ratio_sum / weight_sum;
-  *absorption_rate = absorption_sum / weight_sum;
+  if(0.01 < weight_sum){
+    float invsum = 1.0 / weight_sum;
+    *distance = distance_sum * invsum;
+    *hit_ratio = hit_ratio_sum * invsum;
+    *absorption_rate = absorption_sum * invsum;
+  }else{
+    *distance = 0.0;
+    *hit_ratio = 0.0;
+    *absorption_rate = 0.0;
+  }
 }
 
 static void recompute_parameters(struct spatial_reverb_segment_data *data){
@@ -233,7 +240,7 @@ int spatial_reverb_segment_set(uint32_t field, void *value, struct mixed_segment
   case MIXED_SPATIAL_REVERB_PROBE: {
     float *values = (float *)value;
     uint8_t index = data->probe_index;
-    data->probe_angles[index] = values[0];
+    data->probe_angles[index] = fmod(values[0], 2*M_PI);
     data->probe_distances[index] = values[1];
     data->probe_materials[index] = values[2];
     data->probe_index = (index+1) % PROBE_COUNT;
@@ -308,6 +315,7 @@ MIXED_EXPORT int mixed_make_segment_spatial_reverb(uint32_t samplerate, struct m
   for(int d=0; d<4; ++d){
     struct spatial_reverb_direction *dir = &data->directions[d];
     dir->delay = calloc(data->delay_capacity, sizeof(float));
+    dir->delay_length = 1;
     dir->gain = 0.0;
     biquad_lowpass(data->samplerate, data->samplerate, 0, &dir->lpf);
     biquad_allpass(data->samplerate, data->samplerate, 1, &dir->apf);
