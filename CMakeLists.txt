@@ -83,6 +83,9 @@ target_compile_options(samplerate PRIVATE -O3 ${COMPILATION_FLAGS})
 if(CMAKE_SYSTEM_NAME MATCHES "FreeBSD")
   target_compile_options(samplerate PRIVATE -fpic -flto)
 endif()
+if(CMAKE_SYSTEM_NAME MATCHES "NetBSD")
+  target_compile_options(samplerate PRIVATE -fPIC)
+endif()
 
 ## Spiralfft
 if(ARCH MATCHES "x86_64")
@@ -98,6 +101,9 @@ target_include_directories(spiralfft PRIVATE "spiralfft/")
 target_compile_options(spiralfft PRIVATE -O3 ${COMPILATION_FLAGS})
 if(CMAKE_SYSTEM_NAME MATCHES "FreeBSD")
   target_compile_options(spiralfft PRIVATE -fpic -flto)
+endif()
+if(CMAKE_SYSTEM_NAME MATCHES "NetBSD")
+  target_compile_options(spiralfft PRIVATE -fPIC)
 endif()
 
 ## Libmixed
