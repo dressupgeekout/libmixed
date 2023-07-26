@@ -206,7 +206,7 @@ int repeat_segment_set(uint32_t field, void *value, struct mixed_segment *segmen
     }
     data->mode = *(enum mixed_repeat_mode *)value;
     break;
-  case MIXED_REPEAT_POSITION:
+  case MIXED_REPEAT_POSITION: {
     float position = (*(float *)value);
     if(position < 0.0f){
       mixed_err(MIXED_INVALID_VALUE);
@@ -218,6 +218,7 @@ int repeat_segment_set(uint32_t field, void *value, struct mixed_segment *segmen
       return 0;
     }
     data->buffer_index = index;
+	}
     break;
   case MIXED_BYPASS:
     if(*(bool *)value){
